@@ -1,10 +1,10 @@
-package uz.hikmatullo;
+package uz.hikmatullo.httpserver;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import uz.hikmatullo.config.ConfigManager;
-import uz.hikmatullo.config.Configuration;
-import uz.hikmatullo.core.ServerListenerThread;
+import uz.hikmatullo.httpserver.config.ConfigManager;
+import uz.hikmatullo.httpserver.config.Configuration;
+import uz.hikmatullo.httpserver.core.ServerListenerThread;
 
 import java.io.IOException;
 

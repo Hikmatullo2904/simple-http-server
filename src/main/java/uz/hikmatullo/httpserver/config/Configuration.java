@@ -1,4 +1,4 @@
-package uz.hikmatullo.config;
+package uz.hikmatullo.httpserver.config;
 
 public class Configuration {
     private int port;

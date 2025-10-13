@@ -1,4 +1,4 @@
-package uz.hikmatullo.core;
+package uz.hikmatullo.httpserver.core;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +23,22 @@ public class HttpConnectionWorkerThread extends Thread{
         try {
             inputStream = socket.getInputStream();
             outputStream = socket.getOutputStream();
+
+            StringBuilder requestBuilder = new StringBuilder();
+
+            int _byte;
+            while ((_byte = inputStream.read()) != -1) {
+                requestBuilder.append((char) _byte);
+
+                // Stop when we reach the end of headers
+                if (requestBuilder.toString().endsWith("\r\n\r\n")) {
+                    break;
+                }
+            }
+
+            System.out.println("----- HTTP Request Start -----");
+            System.out.println(requestBuilder);
+            System.out.println("----- HTTP Request End -----");
 
             final String CRLF = "\r\n";
 

@@ -1,8 +1,8 @@
-package uz.hikmatullo.config;
+package uz.hikmatullo.httpserver.config;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import uz.hikmatullo.exceptions.HttpConfigurationException;
-import uz.hikmatullo.util.JsonParser;
+import uz.hikmatullo.httpserver.exceptions.HttpConfigurationException;
+import uz.hikmatullo.httpserver.util.JsonParser;
 
 import java.io.FileReader;
 import java.io.IOException;
