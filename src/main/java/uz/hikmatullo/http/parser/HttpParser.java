@@ -209,25 +209,24 @@ public class HttpParser {
     // Body parsing (Content-Length and chunked)
     // ---------------------------
     private void parseBody(InputStream input, HttpRequest.Builder builder, Map<String, String> headers) throws IOException {
-        // Determine transfer-encoding vs content-length precedence:
-        // If Transfer-Encoding present and includes "chunked" => chunked body
-        // Else if Content-Length present => fixed-length body
-        // Else => no body (for many methods)
+        // Determine which rule applies:
+        // 1. Transfer-Encoding: chunked → read chunked body
+        // 2. Content-Length → read fixed length
+        // 3. Neither → no body (e.g., GET, HEAD, etc.)
 
         String transferEncoding = getHeaderIgnoreCase(headers, "transfer-encoding");
         if (transferEncoding != null) {
-            // If transfer-encoding present, the final codings must be chunked to have a body length determinable.
-            // We only support 'chunked' as the final coding.
-            String lowerTE = transferEncoding.toLowerCase(Locale.ROOT);
-            if (!lowerTE.contains("chunked")) {
-                // unsupported transfer-encoding
+            String lower = transferEncoding.toLowerCase(Locale.ROOT);
+            if (!lower.contains("chunked")) {
+                // Unsupported transfer-encoding — only 'chunked' is implemented
                 throw new HttpParsingException(HttpStatusCode.NOT_IMPLEMENTED_METHOD);
             }
+
             byte[] bodyBytes = readChunkedBody(input, builder, headers);
             String bodyString = bytesToStringWithCharset(bodyBytes, headers);
             builder.body(bodyString);
 
-            // parse form params if content-type urlencoded
+            // Parse parameters if form-urlencoded
             parseFormParametersIfNeeded(builder, headers, bodyString);
             return;
         }
@@ -240,21 +239,21 @@ public class HttpParser {
             } catch (NumberFormatException e) {
                 throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
             }
-            if (length < 0) throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
-            if (length == 0) {
-                builder.body("");
-                return;
-            }
 
+            if (length < 0) throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
+
+            // Read exactly `length` bytes — no more, no less
             byte[] bodyBytes = readFixedLength(input, length);
+
             String bodyString = bytesToStringWithCharset(bodyBytes, headers);
             builder.body(bodyString);
 
+            // Parse parameters if form-urlencoded
             parseFormParametersIfNeeded(builder, headers, bodyString);
             return;
         }
 
-        // No Transfer-Encoding or Content-Length: no body for typical requests (or connection: close streaming bodies not supported)
+        // No Transfer-Encoding or Content-Length → assume no body
         builder.body(null);
     }
 
