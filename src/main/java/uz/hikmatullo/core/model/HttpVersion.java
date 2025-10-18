@@ -1,6 +1,6 @@
-package uz.hikmatullo.http.model;
+package uz.hikmatullo.core.model;
 
-import uz.hikmatullo.http.exception.BadHttpVersionException;
+import uz.hikmatullo.core.exception.BadHttpVersionException;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;

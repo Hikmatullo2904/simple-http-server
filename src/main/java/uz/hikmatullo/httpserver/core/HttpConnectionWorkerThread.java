@@ -2,6 +2,8 @@ package uz.hikmatullo.httpserver.core;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import uz.hikmatullo.core.model.HttpRequest;
+import uz.hikmatullo.core.parser.HttpParser;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,6 +25,9 @@ public class HttpConnectionWorkerThread extends Thread{
         try {
             inputStream = socket.getInputStream();
             outputStream = socket.getOutputStream();
+
+            HttpParser parser = new HttpParser();
+            HttpRequest parse = parser.parse(inputStream);
 
             StringBuilder requestBuilder = new StringBuilder();
 
@@ -50,6 +55,8 @@ public class HttpConnectionWorkerThread extends Thread{
                             "Content-Length: " + html.getBytes().length + CRLF +
                             CRLF +
                             html; //Body
+
+
             /*
             This doesn’t directly send data to the client (like the browser).
             Instead, it writes the bytes into an internal buffer — a memory area managed by the Java I/O stream.

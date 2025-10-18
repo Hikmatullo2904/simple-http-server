@@ -1,11 +1,12 @@
-package uz.hikmatullo.http.parser;
+package uz.hikmatullo.core.parser;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import uz.hikmatullo.http.exception.HttpParsingException;
-import uz.hikmatullo.http.model.HttpRequest;
-import uz.hikmatullo.http.model.HttpStatusCode;
-import uz.hikmatullo.http.model.HttpVersion;
+import uz.hikmatullo.core.exception.HttpParsingException;
+import uz.hikmatullo.core.model.HttpRequest;
+import uz.hikmatullo.core.model.HttpStatusCode;
+import uz.hikmatullo.core.model.HttpVersion;
+import uz.hikmatullo.core.model.SupportedContentType;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -82,6 +83,7 @@ public class HttpParser {
             return builder.build();
 
         } catch (HttpParsingException e) {
+
             throw e;
         } catch (IOException e) {
             log.error("I/O while parsing HTTP request", e);
@@ -209,29 +211,36 @@ public class HttpParser {
     // Body parsing (Content-Length and chunked)
     // ---------------------------
     private void parseBody(InputStream input, HttpRequest.Builder builder, Map<String, String> headers) throws IOException {
-        // Determine which rule applies:
-        // 1. Transfer-Encoding: chunked → read chunked body
-        // 2. Content-Length → read fixed length
-        // 3. Neither → no body (e.g., GET, HEAD, etc.)
+        builder.contentLength(getHeaderIgnoreCase(headers, "content-length"));
+        builder.contentType(getHeaderIgnoreCase(headers, "content-type"));
 
         String transferEncoding = getHeaderIgnoreCase(headers, "transfer-encoding");
+        String contentType = getHeaderIgnoreCase(headers, "content-type");
+        String contentLengthValue = getHeaderIgnoreCase(headers, "content-length");
+
+        // 1️⃣ Multipart (form-data)
+        if (SupportedContentType.isMultipart(contentType)) {
+            String boundary = extractBoundary(contentType);
+            ParseMultipartFormDataBody.Result multi = ParseMultipartFormDataBody.parse(input, boundary);
+            builder.multipartRawFiles(multi.files);
+            builder.formFields(multi.fields);
+            return;
+        }
+
+        // 2️⃣ Chunked transfer
         if (transferEncoding != null) {
             String lower = transferEncoding.toLowerCase(Locale.ROOT);
             if (!lower.contains("chunked")) {
-                // Unsupported transfer-encoding — only 'chunked' is implemented
                 throw new HttpParsingException(HttpStatusCode.NOT_IMPLEMENTED_METHOD);
             }
 
             byte[] bodyBytes = readChunkedBody(input, builder, headers);
             String bodyString = bytesToStringWithCharset(bodyBytes, headers);
             builder.body(bodyString);
-
-            // Parse parameters if form-urlencoded
-            parseFormParametersIfNeeded(builder, headers, bodyString);
             return;
         }
 
-        String contentLengthValue = getHeaderIgnoreCase(headers, "content-length");
+        // 3️⃣ Fixed-length body
         if (contentLengthValue != null) {
             int length;
             try {
@@ -242,20 +251,22 @@ public class HttpParser {
 
             if (length < 0) throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
 
-            // Read exactly `length` bytes — no more, no less
-            byte[] bodyBytes = readFixedLength(input, length);
+            // Only allow known types
+            if (!SupportedContentType.isSupported(contentType)) {
+                log.error("Unsupported media type: {}", contentType);
+                throw new HttpParsingException(HttpStatusCode.UNSUPPORTED_MEDIA_TYPE);
+            }
 
+            byte[] bodyBytes = readFixedLength(input, length);
             String bodyString = bytesToStringWithCharset(bodyBytes, headers);
             builder.body(bodyString);
-
-            // Parse parameters if form-urlencoded
-            parseFormParametersIfNeeded(builder, headers, bodyString);
             return;
         }
 
-        // No Transfer-Encoding or Content-Length → assume no body
+        // 4️⃣ No body
         builder.body(null);
     }
+
 
     private byte[] readFixedLength(InputStream input, int length) throws IOException {
         byte[] buffer = new byte[length];
@@ -263,7 +274,8 @@ public class HttpParser {
         while (offset < length) {
             int read = input.read(buffer, offset, length - offset);
             if (read == -1) {
-                throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
+                log.error("Body size is not equal to content-length");
+                throw new HttpParsingException(HttpStatusCode.BAD_REQUEST, "Body size is not equal to content-length");
             }
             offset += read;
         }
@@ -359,7 +371,7 @@ public class HttpParser {
                     throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
                 }
                 // line ended. convert bytes to String using ISO-8859-1 as RFC suggests for header bytes
-                return buf.toString(StandardCharsets.ISO_8859_1.name());
+                return buf.toString(StandardCharsets.ISO_8859_1);
             }
 
             if (b == LF) {
@@ -417,8 +429,8 @@ public class HttpParser {
             if (pair.isEmpty()) continue;
             String[] kv = pair.split("=", 2);
             try {
-                String k = URLDecoder.decode(kv[0], StandardCharsets.UTF_8.name());
-                String v = kv.length == 2 ? URLDecoder.decode(kv[1], StandardCharsets.UTF_8.name()) : "";
+                String k = URLDecoder.decode(kv[0], StandardCharsets.UTF_8);
+                String v = kv.length == 2 ? URLDecoder.decode(kv[1], StandardCharsets.UTF_8) : "";
                 params.put(k, v);
             } catch (Exception ex) {
                 // leave raw if decoding fails
@@ -455,5 +467,21 @@ public class HttpParser {
             }
         }
         return new String(bytes, StandardCharsets.UTF_8);
+    }
+
+
+    private String extractBoundary(String contentType) {
+        for (String param : contentType.split(";")) {
+            param = param.trim();
+            if (param.startsWith("boundary=")) {
+                String val = param.substring("boundary=".length());
+                // boundary might be quoted
+                if (val.startsWith("\"") && val.endsWith("\"") && val.length() >= 2) {
+                    val = val.substring(1, val.length() - 1);
+                }
+                return val;
+            }
+        }
+        return null;
     }
 }

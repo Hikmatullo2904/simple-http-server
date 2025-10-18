@@ -1,13 +1,13 @@
-package uz.hikmatullo.http.parser;
+package uz.hikmatullo.core.parser;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
-import uz.hikmatullo.http.exception.HttpParsingException;
-import uz.hikmatullo.http.model.HttpMethod;
-import uz.hikmatullo.http.model.HttpRequest;
-import uz.hikmatullo.http.model.HttpStatusCode;
-import uz.hikmatullo.http.model.HttpVersion;
+import uz.hikmatullo.core.exception.HttpParsingException;
+import uz.hikmatullo.core.model.HttpMethod;
+import uz.hikmatullo.core.model.HttpRequest;
+import uz.hikmatullo.core.model.HttpStatusCode;
+import uz.hikmatullo.core.model.HttpVersion;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;

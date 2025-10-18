@@ -1,4 +1,4 @@
-package uz.hikmatullo.http.model;
+package uz.hikmatullo.core.model;
 
 public enum HttpStatusCode {
     BAD_REQUEST(400, "Bad Request"),
@@ -9,7 +9,8 @@ public enum HttpStatusCode {
     //Server errors
     INTERNAL_SERVER_ERROR(500, "Internal Server Error"),
     NOT_IMPLEMENTED_METHOD(501, "Not Implemented Method"),
-    HTTP_VERSION_NOT_SUPPORTED(505, "Http version not supported");
+    HTTP_VERSION_NOT_SUPPORTED(505, "Http version not supported"),
+    UNSUPPORTED_MEDIA_TYPE(415, "Unsupported Media Type");
 
 
 

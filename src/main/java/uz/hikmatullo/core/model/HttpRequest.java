@@ -1,13 +1,10 @@
-package uz.hikmatullo.http.model;
+package uz.hikmatullo.core.model;
 
-import uz.hikmatullo.http.exception.HttpParsingException;
+import uz.hikmatullo.core.exception.HttpParsingException;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 
 public class HttpRequest {
@@ -22,6 +19,10 @@ public class HttpRequest {
     private final Map<String, String> parameters;
     private final String rawQuery;
     private final String target;
+    private final String contentType;
+    private final String contentLength;
+    private final List<MultipartRawFile> multipartRawFiles;
+    private final Map<String, String> formFields;
 
     private HttpRequest(Builder builder) {
         this.method = builder.method;
@@ -34,6 +35,10 @@ public class HttpRequest {
         this.parameters = Collections.unmodifiableMap(builder.parameters);
         this.rawQuery = builder.rawQuery;
         this.target = builder.target;
+        this.contentType = builder.contentType;
+        this.contentLength = builder.contentLength;
+        this.multipartRawFiles = builder.multipartRawFiles;
+        this.formFields = Collections.unmodifiableMap(builder.formFields);
     }
 
     // ---- Getters ----
@@ -45,6 +50,7 @@ public class HttpRequest {
     public String getBody() { return body; }
     public Map<String, String> getCookies() { return cookies; }
     public Map<String, String> getParameters() { return parameters; }
+    public Map<String, String> getFormFields() { return formFields; }
 
     // Convenience helper (case-insensitive header lookup)
     public String getHeader(String name) {
@@ -64,6 +70,15 @@ public class HttpRequest {
     public String getTarget() {
         return target;
     }
+    public String getContentType() {
+        return contentType;
+    }
+    public String getContentLength() {
+        return contentLength;
+    }
+    public List<MultipartRawFile> getMultipartRawFiles() {
+        return multipartRawFiles;
+    }
 
     // ---- Builder Pattern ----
     public static class Builder {
@@ -77,6 +92,10 @@ public class HttpRequest {
         private final Map<String, String> parameters = new LinkedHashMap<>();
         private String rawQuery;
         private String target;
+        private String contentType;
+        private String contentLength;
+        private List<MultipartRawFile> multipartRawFiles  = new ArrayList<>();
+        private Map<String, String> formFields = new HashMap<>();
 
         public void method(String methodName) {
             try {
@@ -84,6 +103,22 @@ public class HttpRequest {
             } catch (IllegalArgumentException e) {
                 throw new HttpParsingException(HttpStatusCode.NOT_IMPLEMENTED_METHOD);
             }
+        }
+
+        public void contentType(String contentType) {
+            this.contentType = contentType;
+        }
+
+        public void contentLength(String contentLength) {
+            this.contentLength = contentLength;
+        }
+
+        public void multipartRawFiles(List<MultipartRawFile> multipartRawFiles) {
+            this.multipartRawFiles = multipartRawFiles;
+        }
+
+        public void formFields(Map<String, String> formFields) {
+            this.formFields = formFields;
         }
 
 
@@ -156,20 +191,35 @@ public class HttpRequest {
             parameters.put(key, value);
         }
 
+
+        public void addMultipartRawFile(MultipartRawFile file) {
+            this.multipartRawFiles.add(file);
+        }
+        public void addFormFields(Map<String, String> formFields) {
+            this.formFields.putAll(formFields);
+        }
+
         public void body(String body) {
             this.body = body;
         }
 
-        public Map<String, String> getHeaders() {
+        public Map<String, String> headers() {
             return headers;
         }
 
-        public Map<String, String> getCookies() {
+        public Map<String, String> cookies() {
             return cookies;
         }
 
-        public Map<String, String> getParameters() {
+        public Map<String, String> parameters() {
             return parameters;
+        }
+
+        public List<MultipartRawFile> multipartRawFiles() {
+            return multipartRawFiles;
+        }
+        public Map<String, String> formFields() {
+            return formFields;
         }
 
         public HttpVersion getHttpVersion() {
