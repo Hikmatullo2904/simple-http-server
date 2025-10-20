@@ -12,11 +12,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 
-public class HttpConnectionWorkerThread extends Thread{
+public class HttpConnectionHandler extends Thread{
 
-    private static final Logger log = LoggerFactory.getLogger(HttpConnectionWorkerThread.class);
+    private static final Logger log = LoggerFactory.getLogger(HttpConnectionHandler.class);
     private final Socket socket;
-    public HttpConnectionWorkerThread(Socket socket) {
+    public HttpConnectionHandler(Socket socket) {
         this.socket = socket;
     }
     @Override

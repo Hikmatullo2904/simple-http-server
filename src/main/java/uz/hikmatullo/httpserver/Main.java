@@ -4,14 +4,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import uz.hikmatullo.httpserver.config.ConfigManager;
 import uz.hikmatullo.httpserver.config.Configuration;
-import uz.hikmatullo.httpserver.runtime.ServerListenerThread;
+import uz.hikmatullo.httpserver.runtime.HttpServer;
 
 import java.io.IOException;
 
 
-public class HttpServer {
+public class Main {
 
-    private static final Logger log = LoggerFactory.getLogger(HttpServer.class);
+    private static final Logger log = LoggerFactory.getLogger(Main.class);
 
     public static void main(String[] args) {
         System.out.println("Server started..");
@@ -23,7 +23,7 @@ public class HttpServer {
         log.info("Application web root is: {}", currentConfiguration.getWebroot());
 
         try {
-            var serverListenerThread = new ServerListenerThread(currentConfiguration.getPort(),
+            var serverListenerThread = new HttpServer(currentConfiguration.getPort(),
                     currentConfiguration.getWebroot());
             serverListenerThread.start();
         } catch (IOException e) {

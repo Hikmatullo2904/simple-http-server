@@ -7,13 +7,13 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-public class ServerListenerThread extends Thread{
+public class HttpServer extends Thread{
 
-    private static final Logger log = LoggerFactory.getLogger(ServerListenerThread.class);
+    private static final Logger log = LoggerFactory.getLogger(HttpServer.class);
     private int port;
     private String webroot;
     private final ServerSocket serverSocket;
-    public ServerListenerThread(int port, String webroot) throws IOException {
+    public HttpServer(int port, String webroot) throws IOException {
         this.port = port;
         this.webroot = webroot;
         serverSocket = new ServerSocket(port);
@@ -27,7 +27,7 @@ public class ServerListenerThread extends Thread{
                 Socket socket = serverSocket.accept();
                 log.info("Client connected!");
 
-                var workerThread = new HttpConnectionWorkerThread(socket);
+                var workerThread = new HttpConnectionHandler(socket);
                 workerThread.start();
             }
         } catch (IOException e) {
