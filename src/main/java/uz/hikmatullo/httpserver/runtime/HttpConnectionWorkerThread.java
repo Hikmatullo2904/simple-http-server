@@ -1,11 +1,11 @@
-package uz.hikmatullo.httpserver.core;
+package uz.hikmatullo.httpserver.runtime;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import uz.hikmatullo.core.exception.HttpParsingException;
-import uz.hikmatullo.core.model.HttpRequest;
-import uz.hikmatullo.core.model.HttpStatusCode;
-import uz.hikmatullo.core.parser.HttpParser;
+import uz.hikmatullo.httpserver.exception.HttpParsingException;
+import uz.hikmatullo.httpserver.core.model.HttpRequest;
+import uz.hikmatullo.httpserver.core.model.HttpStatusCode;
+import uz.hikmatullo.httpserver.core.parser.HttpParser;
 
 import java.io.IOException;
 import java.io.InputStream;

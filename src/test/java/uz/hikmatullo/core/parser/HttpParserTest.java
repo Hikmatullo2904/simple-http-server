@@ -3,11 +3,12 @@ package uz.hikmatullo.core.parser;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
-import uz.hikmatullo.core.exception.HttpParsingException;
-import uz.hikmatullo.core.model.HttpMethod;
-import uz.hikmatullo.core.model.HttpRequest;
-import uz.hikmatullo.core.model.HttpStatusCode;
-import uz.hikmatullo.core.model.HttpVersion;
+import uz.hikmatullo.httpserver.exception.HttpParsingException;
+import uz.hikmatullo.httpserver.core.model.HttpMethod;
+import uz.hikmatullo.httpserver.core.model.HttpRequest;
+import uz.hikmatullo.httpserver.core.model.HttpStatusCode;
+import uz.hikmatullo.httpserver.core.model.HttpVersion;
+import uz.hikmatullo.httpserver.core.parser.HttpParser;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;

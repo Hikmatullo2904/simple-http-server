@@ -1,4 +1,4 @@
-package uz.hikmatullo.core.model;
+package uz.hikmatullo.httpserver.core.model;
 
 import java.io.IOException;
 import java.io.OutputStream;

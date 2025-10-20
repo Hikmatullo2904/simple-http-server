@@ -1,4 +1,4 @@
-package uz.hikmatullo.httpserver.core;
+package uz.hikmatullo.httpserver.runtime;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

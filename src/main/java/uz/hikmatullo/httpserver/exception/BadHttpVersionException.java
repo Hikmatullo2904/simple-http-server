@@ -1,6 +1,6 @@
-package uz.hikmatullo.core.exception;
+package uz.hikmatullo.httpserver.exception;
 
-import uz.hikmatullo.core.model.HttpStatusCode;
+import uz.hikmatullo.httpserver.core.model.HttpStatusCode;
 
 public class BadHttpVersionException extends RuntimeException {
     private final HttpStatusCode errorCode;

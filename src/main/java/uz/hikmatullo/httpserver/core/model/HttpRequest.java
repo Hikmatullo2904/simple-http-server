@@ -1,6 +1,6 @@
-package uz.hikmatullo.core.model;
+package uz.hikmatullo.httpserver.core.model;
 
-import uz.hikmatullo.core.exception.HttpParsingException;
+import uz.hikmatullo.httpserver.exception.HttpParsingException;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -101,7 +101,7 @@ public class HttpRequest {
             try {
                 this.method = HttpMethod.valueOf(methodName);
             } catch (IllegalArgumentException e) {
-                throw new HttpParsingException(HttpStatusCode.NOT_IMPLEMENTED_METHOD);
+                throw new HttpParsingException(HttpStatusCode.NOT_IMPLEMENTED);
             }
         }
 

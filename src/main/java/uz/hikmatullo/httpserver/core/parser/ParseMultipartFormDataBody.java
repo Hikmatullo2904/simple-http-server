@@ -1,8 +1,8 @@
-package uz.hikmatullo.core.parser;
+package uz.hikmatullo.httpserver.core.parser;
 
-import uz.hikmatullo.core.exception.HttpParsingException;
-import uz.hikmatullo.core.model.HttpStatusCode;
-import uz.hikmatullo.core.model.MultipartRawFile;
+import uz.hikmatullo.httpserver.exception.HttpParsingException;
+import uz.hikmatullo.httpserver.core.model.HttpStatusCode;
+import uz.hikmatullo.httpserver.core.model.MultipartRawFile;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;

@@ -1,7 +1,9 @@
 package uz.hikmatullo.core.model;
 
 import org.junit.jupiter.api.Test;
-import uz.hikmatullo.core.exception.BadHttpVersionException;
+import uz.hikmatullo.httpserver.exception.BadHttpVersionException;
+import uz.hikmatullo.httpserver.core.model.HttpStatusCode;
+import uz.hikmatullo.httpserver.core.model.HttpVersion;
 
 import static org.junit.jupiter.api.Assertions.*;
 

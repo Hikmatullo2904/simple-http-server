@@ -1,4 +1,4 @@
-package uz.hikmatullo.core.model;
+package uz.hikmatullo.httpserver.core.model;
 
 public enum HttpStatusCode {
 
