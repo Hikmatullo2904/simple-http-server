@@ -12,7 +12,7 @@ public class ServerListenerThread extends Thread{
     private static final Logger log = LoggerFactory.getLogger(ServerListenerThread.class);
     private int port;
     private String webroot;
-    private ServerSocket serverSocket;
+    private final ServerSocket serverSocket;
     public ServerListenerThread(int port, String webroot) throws IOException {
         this.port = port;
         this.webroot = webroot;
@@ -29,7 +29,6 @@ public class ServerListenerThread extends Thread{
 
                 var workerThread = new HttpConnectionWorkerThread(socket);
                 workerThread.start();
-
             }
         } catch (IOException e) {
             log.error("Error occurred when setting up socket", e);

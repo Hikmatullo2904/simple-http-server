@@ -56,7 +56,7 @@ class HttpParserTest {
 
             fail();
         } catch (HttpParsingException e) {
-            assertEquals(HttpStatusCode.NOT_IMPLEMENTED_METHOD, e.getErrorCode());
+            assertEquals(HttpStatusCode.NOT_IMPLEMENTED, e.getErrorCode());
         }
     }
 
@@ -100,7 +100,7 @@ class HttpParserTest {
             );
             fail();
         } catch (HttpParsingException e) {
-            assertEquals(HttpStatusCode.NOT_IMPLEMENTED_METHOD, e.getErrorCode());
+            assertEquals(HttpStatusCode.NOT_IMPLEMENTED, e.getErrorCode());
         }
     }
 

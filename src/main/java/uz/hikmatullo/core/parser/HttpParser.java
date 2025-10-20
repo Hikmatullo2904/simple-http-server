@@ -113,7 +113,7 @@ public class HttpParser {
         try {
             builder.method(methodStr);
         } catch (HttpParsingException ex) {
-            throw new HttpParsingException(HttpStatusCode.NOT_IMPLEMENTED_METHOD);
+            throw new HttpParsingException(HttpStatusCode.NOT_IMPLEMENTED);
         }
 
         // --- Target ---
@@ -222,7 +222,7 @@ public class HttpParser {
         if (transferEncoding != null) {
             String lower = transferEncoding.toLowerCase(Locale.ROOT);
             if (!lower.contains("chunked")) {
-                throw new HttpParsingException(HttpStatusCode.NOT_IMPLEMENTED_METHOD);
+                throw new HttpParsingException(HttpStatusCode.NOT_IMPLEMENTED);
             }
 
             byte[] bodyBytes = readChunkedBody(input, builder, headers);
