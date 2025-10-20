@@ -2,7 +2,9 @@ package uz.hikmatullo.httpserver.core;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import uz.hikmatullo.core.exception.HttpParsingException;
 import uz.hikmatullo.core.model.HttpRequest;
+import uz.hikmatullo.core.model.HttpStatusCode;
 import uz.hikmatullo.core.parser.HttpParser;
 
 import java.io.IOException;
@@ -13,7 +15,7 @@ import java.net.Socket;
 public class HttpConnectionWorkerThread extends Thread{
 
     private static final Logger log = LoggerFactory.getLogger(HttpConnectionWorkerThread.class);
-    private Socket socket;
+    private final Socket socket;
     public HttpConnectionWorkerThread(Socket socket) {
         this.socket = socket;
     }
@@ -26,24 +28,15 @@ public class HttpConnectionWorkerThread extends Thread{
             inputStream = socket.getInputStream();
             outputStream = socket.getOutputStream();
 
-            HttpParser parser = new HttpParser();
-            HttpRequest parse = parser.parse(inputStream);
-
-            StringBuilder requestBuilder = new StringBuilder();
-
-            int _byte;
-            while ((_byte = inputStream.read()) != -1) {
-                requestBuilder.append((char) _byte);
-
-                // Stop when we reach the end of headers
-                if (requestBuilder.toString().endsWith("\r\n\r\n")) {
-                    break;
-                }
+            if (inputStream.available() == 0) {
+                log.warn("Empty connection received. Ignoring.");
+                return;
             }
 
-            System.out.println("----- HTTP Request Start -----");
-            System.out.println(requestBuilder);
-            System.out.println("----- HTTP Request End -----");
+//            System.out.println(readRequest(inputStream));
+
+            HttpParser parser = new HttpParser();
+            HttpRequest parse = parser.parse(inputStream);
 
             final String CRLF = "\r\n";
 
@@ -67,16 +60,17 @@ public class HttpConnectionWorkerThread extends Thread{
             //Hey OS, send everything in that buffer to the TCP layer right now, don’t wait
             outputStream.flush();
 
-            inputStream.close();
-
-            //This calls flush internally. that's why without calling flush explicitly, response is returning.
-            outputStream.close();
-            socket.close();
-
             log.info("Connection finished");
         }catch (IOException e) {
+            log.error("I/O error happened {}", e.getMessage());
+            sendErrorResponse(socket, HttpStatusCode.INTERNAL_SERVER_ERROR.statusCode, e.getMessage());
+        } catch (HttpParsingException e) {
+            sendErrorResponse(socket, e.getErrorCode().statusCode, e.getMessage());
+        }catch (Exception e) {
             log.error("Error happened {}", e.getMessage());
-        }finally {
+            sendErrorResponse(socket, HttpStatusCode.INTERNAL_SERVER_ERROR.statusCode, e.getMessage());
+        }
+        finally {
             closeConnections(inputStream, outputStream);
         }
     }
@@ -121,5 +115,64 @@ public class HttpConnectionWorkerThread extends Thread{
         </html>
         """;
     }
+
+    private String readRequest(InputStream inputStream) throws IOException {
+        StringBuilder headersBuilder = new StringBuilder();
+        int prev = 0, curr;
+        // Read until \r\n\r\n (end of headers)
+        while ((curr = inputStream.read()) != -1) {
+            headersBuilder.append((char) curr);
+            if (prev == '\r' && curr == '\n' && headersBuilder.toString().endsWith("\r\n\r\n")) {
+                break;
+            }
+            prev = curr;
+        }
+
+        String headers = headersBuilder.toString();
+        System.out.println("----- HEADERS START -----");
+        System.out.println(headers);
+        System.out.println("----- HEADERS END -----");
+
+        // Extract content length
+        int contentLength = 0;
+        for (String line : headers.split("\r\n")) {
+            if (line.toLowerCase().startsWith("content-length:")) {
+                contentLength = Integer.parseInt(line.split(":")[1].trim());
+            }
+        }
+
+        // Now read body based on content length
+        byte[] body = new byte[contentLength];
+        int bytesRead = 0;
+        while (bytesRead < contentLength) {
+            int read = inputStream.read(body, bytesRead, contentLength - bytesRead);
+            if (read == -1) break;
+            bytesRead += read;
+        }
+
+        System.out.println("----- BODY START -----");
+        System.out.println(new String(body));
+        System.out.println("----- BODY END -----");
+
+        return headers + "\r\n" + new String(body);
+    }
+
+    private void sendErrorResponse(Socket socket, int statusCode, String message) {
+        try {
+            String response = "HTTP/1.1 " + statusCode + " " + message + "\r\n" +
+                    "Content-Length: 0\r\n" +
+                    "Connection: close\r\n\r\n";
+
+            OutputStream os = socket.getOutputStream();
+            os.write(response.getBytes());
+            os.flush();
+            System.out.println("Error message is sent");
+        } catch (IOException e) {
+            log.error("Failed to send error response: {}", e.getMessage());
+        }
+    }
+
+
+
 
 }

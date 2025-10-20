@@ -20,7 +20,7 @@ public class ParseMultipartFormDataBody {
      * @return Parsed result containing fields and files
      * @throws IOException on read error
      */
-    public static Result parse(InputStream input, String boundary) throws IOException {
+    public static Result parse(InputStream input, String boundary, int contentLength) throws IOException {
         if (boundary == null || boundary.isEmpty()) {
             throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
         }
@@ -28,10 +28,7 @@ public class ParseMultipartFormDataBody {
         byte[] boundaryBytes = ("--" + boundary).getBytes(StandardCharsets.US_ASCII);
         byte[] endBoundaryBytes = ("--" + boundary + "--").getBytes(StandardCharsets.US_ASCII);
 
-        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        byte[] data = input.readAllBytes();
-        buffer.write(data);
-        byte[] bodyBytes = buffer.toByteArray();
+        byte[] bodyBytes = input.readNBytes(contentLength);
 
         Result result = new Result();
         int pos = 0;

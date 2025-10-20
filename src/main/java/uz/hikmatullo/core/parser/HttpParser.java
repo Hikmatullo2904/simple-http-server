@@ -83,11 +83,11 @@ public class HttpParser {
             return builder.build();
 
         } catch (HttpParsingException e) {
-
+            log.error("HttpParsingException while parsing HTTP request", e);
             throw e;
         } catch (IOException e) {
             log.error("I/O while parsing HTTP request", e);
-            throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
+            throw new RuntimeException(e);
         }
     }
 
@@ -216,18 +216,9 @@ public class HttpParser {
 
         String transferEncoding = getHeaderIgnoreCase(headers, "transfer-encoding");
         String contentType = getHeaderIgnoreCase(headers, "content-type");
-        String contentLengthValue = getHeaderIgnoreCase(headers, "content-length");
 
-        // 1️⃣ Multipart (form-data)
-        if (SupportedContentType.isMultipart(contentType)) {
-            String boundary = extractBoundary(contentType);
-            ParseMultipartFormDataBody.Result multi = ParseMultipartFormDataBody.parse(input, boundary);
-            builder.multipartRawFiles(multi.files);
-            builder.formFields(multi.fields);
-            return;
-        }
 
-        // 2️⃣ Chunked transfer
+        // Chunked transfer
         if (transferEncoding != null) {
             String lower = transferEncoding.toLowerCase(Locale.ROOT);
             if (!lower.contains("chunked")) {
@@ -240,16 +231,32 @@ public class HttpParser {
             return;
         }
 
-        // 3️⃣ Fixed-length body
-        if (contentLengthValue != null) {
-            int length;
-            try {
-                length = Integer.parseInt(contentLengthValue.trim());
-            } catch (NumberFormatException e) {
-                throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
-            }
+        String contentLengthValue = getHeaderIgnoreCase(headers, "content-length");
+        if (contentLengthValue == null || contentLengthValue.equals("0")) {
+            builder.body(null);
+            return;
+        }
 
-            if (length < 0) throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
+        int contentLength;
+        try {
+            contentLength = Integer.parseInt(contentLengthValue);
+        } catch (NumberFormatException e) {
+            throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
+        }
+
+        // Multipart (form-data)
+        if (SupportedContentType.isMultipart(contentType)) {
+            String boundary = extractBoundary(contentType);
+            ParseMultipartFormDataBody.Result multi = ParseMultipartFormDataBody.parse(input, boundary, contentLength);
+            builder.multipartRawFiles(multi.files);
+            builder.formFields(multi.fields);
+            return;
+        }
+
+        // Fixed-length body
+        if (contentLength != 0) {
+
+            if (contentLength < 0) throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
 
             // Only allow known types
             if (!SupportedContentType.isSupported(contentType)) {
@@ -257,13 +264,13 @@ public class HttpParser {
                 throw new HttpParsingException(HttpStatusCode.UNSUPPORTED_MEDIA_TYPE);
             }
 
-            byte[] bodyBytes = readFixedLength(input, length);
+            byte[] bodyBytes = readFixedLength(input, contentLength);
             String bodyString = bytesToStringWithCharset(bodyBytes, headers);
             builder.body(bodyString);
             return;
         }
 
-        // 4️⃣ No body
+        // No body
         builder.body(null);
     }
 
@@ -349,7 +356,6 @@ public class HttpParser {
     // ---------------------------
     private String readLineStrict(InputStream input, int maxLen) throws IOException {
         ByteArrayOutputStream buf = new ByteArrayOutputStream(128);
-
         int total = 0;
 
         while (true) {
