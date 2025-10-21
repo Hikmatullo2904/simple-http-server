@@ -2,6 +2,7 @@ package uz.hikmatullo.httpserver.runtime;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import uz.hikmatullo.httpserver.core.model.HttpResponse;
 import uz.hikmatullo.httpserver.exception.HttpParsingException;
 import uz.hikmatullo.httpserver.core.model.HttpRequest;
 import uz.hikmatullo.httpserver.core.model.HttpStatusCode;
@@ -38,16 +39,15 @@ public class HttpConnectionHandler extends Thread{
             HttpParser parser = new HttpParser();
             HttpRequest parse = parser.parse(inputStream);
 
-            final String CRLF = "\r\n";
-
             String html = getHtml();
+            HttpResponse response = new HttpResponse.Builder()
+                    .status(HttpStatusCode.OK)
+                    .protocol("HTTP/1.1")
+                    .header("Content-Type", "text/html")
+                    .body(html.getBytes())
+                    .build();
 
-            String response =
-                    "HTTP/1.1 200 OK" + CRLF + //Status line
-//                    "Content-Type: text/html" + CRLF + //Headers
-                            "Content-Length: " + html.getBytes().length + CRLF +
-                            CRLF +
-                            html; //Body
+            response.write(outputStream);
 
 
             /*
@@ -56,9 +56,9 @@ public class HttpConnectionHandler extends Thread{
             Java → copies data into a buffer.
             The buffer → goes down into the Socket Output Stream.
             Eventually → the OS kernel picks up that data and sends it out via TCP (when the buffer fills or is flushed). */
-            outputStream.write(response.getBytes());
+//            outputStream.write(response.getBytes());
             //Hey OS, send everything in that buffer to the TCP layer right now, don’t wait
-            outputStream.flush();
+//            outputStream.flush();
 
             log.info("Connection finished");
         }catch (IOException e) {

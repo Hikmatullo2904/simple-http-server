@@ -3,6 +3,7 @@ package uz.hikmatullo.httpserver.core.model;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -37,12 +38,12 @@ public class HttpResponse {
         final String CRLF = "\r\n";
         StringBuilder responseBuilder = new StringBuilder();
 
-        // 1️⃣ Status line
+        // 1 Status line
         responseBuilder.append(protocol).append(" ")
                        .append(statusCode).append(" ")
                        .append(reasonPhrase).append(CRLF);
 
-        // 2️⃣ Headers
+        // 2 Headers
         for (var entry : headers.entrySet()) {
             responseBuilder.append(entry.getKey())
                            .append(": ")
@@ -50,10 +51,10 @@ public class HttpResponse {
                            .append(CRLF);
         }
 
-        // 3️⃣ End of headers
+        // 3 End of headers
         responseBuilder.append(CRLF);
 
-        // 4️⃣ Write headers + body
+        // 4 Write headers + body
         outputStream.write(responseBuilder.toString().getBytes(StandardCharsets.UTF_8));
         outputStream.write(body);
         outputStream.flush();
@@ -62,4 +63,43 @@ public class HttpResponse {
     public void setProtocol(String protocol) {
         this.protocol = protocol;
     }
+
+    public static class Builder {
+        private HttpStatusCode status;
+        private String protocol;
+        private final Map<String, String> headers = new HashMap<>();
+        private byte[] body = new byte[0];
+
+        public Builder status(HttpStatusCode status) {
+            this.status = status;
+            return this;
+        }
+
+        public Builder protocol(String protocol) {
+            this.protocol = protocol;
+            return this;
+        }
+
+        public Builder header(String name, String value) {
+            this.headers.put(name, value);
+            return this;
+        }
+
+        public Builder body(byte[] body) {
+            this.body = body;
+            return this;
+        }
+
+        public HttpResponse build() {
+            HttpResponse response = new HttpResponse(status);
+            if (protocol == null) {
+                protocol = "HTTP/1.1";
+            }
+            response.protocol = protocol;
+            response.headers.putAll(headers);
+            response.body = body;
+            return response;
+        }
+    }
+
 }
