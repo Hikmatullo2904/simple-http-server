@@ -15,6 +15,30 @@ public class HttpResponse {
     private final Map<String, String> headers = new LinkedHashMap<>();
     private byte[] body = new byte[0];
 
+    public String getProtocol() {
+        return protocol;
+    }
+
+    public int getStatusCode() {
+        return statusCode;
+    }
+
+    public String getReasonPhrase() {
+        return reasonPhrase;
+    }
+
+    public Map<String, String> getHeaders() {
+        return headers;
+    }
+
+    public byte[] getBody() {
+        return body;
+    }
+
+    public String getHeader(String name) {
+        return headers.get(name);
+    }
+
     public HttpResponse(HttpStatusCode status) {
         this.statusCode = status.statusCode;
         this.reasonPhrase = status.reasonPhrase;
