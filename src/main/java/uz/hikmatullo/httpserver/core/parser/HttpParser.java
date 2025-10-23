@@ -2,15 +2,16 @@ package uz.hikmatullo.httpserver.core.parser;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import uz.hikmatullo.httpserver.exception.HttpParsingException;
 import uz.hikmatullo.httpserver.core.model.HttpRequest;
 import uz.hikmatullo.httpserver.core.model.HttpStatusCode;
 import uz.hikmatullo.httpserver.core.model.HttpVersion;
 import uz.hikmatullo.httpserver.core.model.SupportedContentType;
+import uz.hikmatullo.httpserver.exception.HttpParsingException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -56,7 +57,13 @@ public class HttpParser {
 
         try {
             // Request line
-            String requestLine = readLineStrict(input, MAX_REQUEST_LINE_LENGTH);
+            String requestLine = readLineStrictRequestLine(input, MAX_REQUEST_LINE_LENGTH);
+
+            //It is null if it is empty request.
+            if (requestLine == null) {
+                log.debug("Empty request line");
+                return null;
+            }
             parseRequestLine(requestLine, builder);
 
             // Headers
@@ -85,6 +92,10 @@ public class HttpParser {
         } catch (HttpParsingException e) {
             log.error("HttpParsingException while parsing HTTP request", e);
             throw e;
+        } catch (SocketTimeoutException e) {
+            // Normal: client didn’t send next request in time
+            log.debug("Keep-alive timeout reached, closing connection.");
+            return null;
         } catch (IOException e) {
             log.error("I/O while parsing HTTP request", e);
             throw new RuntimeException(e);
@@ -361,6 +372,47 @@ public class HttpParser {
         while (true) {
             int b = input.read();
             if (b == -1) {
+                // EOF while reading a line -> protocol error
+                throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
+            }
+            total++;
+            if (total > maxLen) {
+                throw new HttpParsingException(HttpStatusCode.REQUEST_HEADER_FIELDS_TOO_LARGE);
+            }
+
+            if (b == CR) {
+                int next = input.read();
+                if (next == -1) throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
+                if (next != LF) {
+                    // CR not followed by LF: invalid per strict HTTP parsing
+                    throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
+                }
+                // line ended. convert bytes to String using ISO-8859-1 as RFC suggests for header bytes
+                return buf.toString(StandardCharsets.ISO_8859_1);
+            }
+
+            if (b == LF) {
+                // LF without preceding CR -> invalid
+                throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
+            }
+
+            buf.write(b);
+        }
+    }
+
+    // ---------------------------
+    // Utility - strict line reader (CRLF only)
+    // ---------------------------
+    private String readLineStrictRequestLine(InputStream input, int maxLen) throws IOException {
+        ByteArrayOutputStream buf = new ByteArrayOutputStream(128);
+        int total = 0;
+
+        while (true) {
+            int b = input.read();
+            if (b == -1) {
+                if(buf.size() == 0) {
+                    return null;
+                }
                 // EOF while reading a line -> protocol error
                 throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
             }

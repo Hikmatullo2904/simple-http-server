@@ -28,7 +28,7 @@ public class HttpServer extends Thread{
                 log.info("Client connected!");
 
                 var workerThread = new HttpConnectionHandler(socket);
-                workerThread.start();
+                new Thread(workerThread).start();
             }
         } catch (IOException e) {
             log.error("Error occurred when setting up socket", e);

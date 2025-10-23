@@ -5,17 +5,15 @@ import org.slf4j.LoggerFactory;
 import uz.hikmatullo.httpserver.controller.TestController;
 import uz.hikmatullo.httpserver.core.HttpKeepAliveManager;
 import uz.hikmatullo.httpserver.core.model.HttpResponse;
-import uz.hikmatullo.httpserver.exception.HttpParsingException;
 import uz.hikmatullo.httpserver.core.model.HttpRequest;
 import uz.hikmatullo.httpserver.core.model.HttpStatusCode;
 import uz.hikmatullo.httpserver.core.parser.HttpParser;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 
-public class HttpConnectionHandler extends Thread {
+public class HttpConnectionHandler implements Runnable {
 
     private static final Logger log = LoggerFactory.getLogger(HttpConnectionHandler.class);
     private final Socket socket;
@@ -24,47 +22,53 @@ public class HttpConnectionHandler extends Thread {
     }
     @Override
     public void run() {
-        try (InputStream inputStream = socket.getInputStream();
-             OutputStream outputStream = socket.getOutputStream()) {
+        try {
+            // Set a timeout so we don't hang forever waiting for data
+            socket.setSoTimeout(5000);
 
-            HttpKeepAliveManager keepAliveManager = new HttpKeepAliveManager();
+            try (InputStream inputStream = socket.getInputStream();
+                 OutputStream outputStream = socket.getOutputStream()) {
 
-            boolean keepAlive;
-            do {
-                if (inputStream.available() == 0) {
-                    log.warn("Empty connection received. Ignoring.");
-                    return;
-                }
 
-                HttpParser parser = new HttpParser();
-                HttpRequest request = parser.parse(inputStream);
+                HttpKeepAliveManager keepAliveManager = new HttpKeepAliveManager();
+                boolean keepAlive;
 
-                // Handle the request (example)
-                TestController controller = new TestController();
-                HttpResponse response = controller.sendPage(request);
+                do {
+                    HttpParser parser = new HttpParser();
+                    HttpRequest request = parser.parse(inputStream);
+                    if (request == null) {
+                        log.debug("Request is null");
+                        break;
+                    }
 
-                // --- Keep-Alive decision ---
-                keepAlive = keepAliveManager.shouldKeepAlive(request);
+                    // --- Handle request ---
+                    TestController controller = new TestController();
+                    HttpResponse response = controller.sendPage(request);
 
-                // Set response header if needed
-                if (keepAlive) {
-                    response.addHeader("Connection", "keep-alive");
-                    response.addHeader("Keep-Alive", "timeout=5, max=100");
-                } else {
-                    response.addHeader("Connection", "close");
-                }
+                    // --- Handle Keep-Alive ---
+                    keepAlive = keepAliveManager.shouldKeepAlive(request);
 
-                response.write(outputStream);
+                    if (keepAlive) {
+                        response.addHeader("Connection", "keep-alive");
+                        response.addHeader("Keep-Alive", "timeout=5, max=100");
+                    } else {
+                        response.addHeader("Connection", "close");
+                    }
 
-                log.info("Request processed. keepAlive={}", keepAlive);
+                    // --- Send Response ---
+                    response.write(outputStream);
 
-            } while (keepAlive && !socket.isClosed() && socket.getInputStream().available() > 0);
+                    log.info("Request processed. keepAlive={}", keepAlive);
 
-        } catch (IOException e) {
+                } while (keepAlive && !socket.isClosed());
+
+            }
+
+        } catch (SocketTimeoutException e) {
+            log.debug("Keep-alive timeout reached, closing connection.");
+        }catch (IOException e) {
             log.error("I/O error happened: {}", e.getMessage());
             sendErrorResponse(socket, HttpStatusCode.INTERNAL_SERVER_ERROR.statusCode, e.getMessage());
-        } catch (HttpParsingException e) {
-            sendErrorResponse(socket, e.getErrorCode().statusCode, e.getMessage());
         } catch (Exception e) {
             log.error("Unexpected error: {}", e.getMessage());
             sendErrorResponse(socket, HttpStatusCode.INTERNAL_SERVER_ERROR.statusCode, e.getMessage());
@@ -72,6 +76,7 @@ public class HttpConnectionHandler extends Thread {
             closeConnection();
         }
     }
+
 
 
     private void closeConnection() {
