@@ -2,14 +2,16 @@ package uz.hikmatullo.httpserver.runtime;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import uz.hikmatullo.httpserver.controller.TestController;
 import uz.hikmatullo.httpserver.core.HttpKeepAliveManager;
-import uz.hikmatullo.httpserver.core.model.HttpResponse;
+import uz.hikmatullo.httpserver.core.handler.RequestHandler;
 import uz.hikmatullo.httpserver.core.model.HttpRequest;
+import uz.hikmatullo.httpserver.core.model.HttpResponse;
 import uz.hikmatullo.httpserver.core.model.HttpStatusCode;
 import uz.hikmatullo.httpserver.core.parser.HttpParser;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 
@@ -17,8 +19,10 @@ public class HttpConnectionHandler implements Runnable {
 
     private static final Logger log = LoggerFactory.getLogger(HttpConnectionHandler.class);
     private final Socket socket;
-    public HttpConnectionHandler(Socket socket) {
+    private final RequestHandler requestHandler;
+    public HttpConnectionHandler(Socket socket, RequestHandler requestHandler) {
         this.socket = socket;
+        this.requestHandler = requestHandler;
     }
     @Override
     public void run() {
@@ -42,8 +46,7 @@ public class HttpConnectionHandler implements Runnable {
                     }
 
                     // --- Handle request ---
-                    TestController controller = new TestController();
-                    HttpResponse response = controller.sendPage(request);
+                    HttpResponse response = requestHandler.handle(request);
 
                     // --- Handle Keep-Alive ---
                     keepAlive = keepAliveManager.shouldKeepAlive(request);
