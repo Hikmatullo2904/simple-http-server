@@ -2,6 +2,7 @@ package uz.hikmatullo.httpserver.runtime;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import uz.hikmatullo.httpserver.core.HttpHeaderDefaults;
 import uz.hikmatullo.httpserver.core.HttpKeepAliveManager;
 import uz.hikmatullo.httpserver.core.handler.RequestHandler;
 import uz.hikmatullo.httpserver.core.model.HttpRequest;
@@ -51,12 +52,8 @@ public class HttpConnectionHandler implements Runnable {
                     // --- Handle Keep-Alive ---
                     keepAlive = keepAliveManager.shouldKeepAlive(request);
 
-                    if (keepAlive) {
-                        response.addHeader("Connection", "keep-alive");
-                        response.addHeader("Keep-Alive", "timeout=5, max=100");
-                    } else {
-                        response.addHeader("Connection", "close");
-                    }
+                    //Setting default headers and connection header based on keepAlive
+                    HttpHeaderDefaults.applyDefaultResponseHeaders(response, keepAlive);
 
                     // --- Send Response ---
                     response.write(outputStream);
