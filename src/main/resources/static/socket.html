@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+    const ws = new WebSocket("ws://localhost:8080");
+    ws.onopen = () => console.log("✅ Connected!");
+    ws.onmessage = e => console.log("📩 Message:", e.data);
+    ws.onerror = e => console.error("❌ Error:", e);
+    // console.log("------------------------");
+    // ws.onopen = () => ws.send("hello server!");
+    // ws.onmessage = e => console.log("Server:", e.data);
+</script>
+</body>
+</html>

@@ -62,6 +62,10 @@ public class HttpResponse {
         final String CRLF = "\r\n";
         StringBuilder responseBuilder = new StringBuilder();
 
+        if (protocol == null) {
+            protocol = "HTTP/1.1";
+        }
+
         // 1 Status line
         responseBuilder.append(protocol).append(" ")
                        .append(statusCode).append(" ")

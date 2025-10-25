@@ -8,10 +8,10 @@ import java.time.format.DateTimeFormatter;
 
 public class HttpHeaderDefaults {
     public static void applyDefaultResponseHeaders(HttpResponse response, boolean keepAlive) {
-        if (response.getHeader("Date") != null) {
+        if (response.getHeader("Date") == null) {
             response.addHeader("Date", DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneOffset.UTC)));
         }
-        if (response.getHeader("Server") != null) {
+        if (response.getHeader("Server") == null) {
             response.addHeader("Server", "HA_HTTP/1.1");
         }
         if (keepAlive) {
