@@ -94,7 +94,7 @@ public class HttpRequest {
         private String target;
         private String contentType;
         private String contentLength;
-        private List<MultipartRawFile> multipartRawFiles  = new ArrayList<>();
+        private List<MultipartRawFile> multipartRawFiles = new ArrayList<>();
         private Map<String, String> formFields = new HashMap<>();
 
         public void method(String methodName) {

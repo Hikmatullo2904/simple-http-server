@@ -32,6 +32,7 @@ public class HttpConnectionHandler implements Runnable {
         this.socket = socket;
         this.requestHandler = requestHandler;
     }
+
     @Override
     public void run() {
         boolean upgradedToWebSocket = false;
@@ -44,6 +45,10 @@ public class HttpConnectionHandler implements Runnable {
             outputStream = socket.getOutputStream();
 
             // Set a timeout so we don't hang forever waiting for data
+            // Set timeout to 5 seconds. this means that we wait for 5 seconds for data to be available in the input stream
+            // Data will not come immediately when socket is accepted or created, so we need to wait for it.
+            //Data may come in chunks, it means GET may come then other chunks and then other chunks for example. "GET / HT" first, then "TP/1.1\r\nHost: ..."
+            // when we read data inputStream.read(), we may wait up to 5 seconds for data to be available in the input stream each time.
             socket.setSoTimeout(5000);
 
             HttpKeepAliveManager keepAliveManager = new HttpKeepAliveManager();
@@ -59,11 +64,14 @@ public class HttpConnectionHandler implements Runnable {
 
                 // --- Detect WebSocket upgrade BEFORE normal HTTP handling ---
                 if (WebSocketUtils.isWebSocketUpgrade(request)) {
+
+                    //if this is websocket connection, we do not put time out. because data may come any time.
+                    socket.setSoTimeout(0);
+
                     // perform handshake and transfer ownership
                     handleWebSocketUpgrade(request, outputStream);
 
-                    // create WebSocketSession and run it on executor
-                    // you might create a listener based on request path or headers
+
                     WebSocketSession session = new WebSocketSession(socket, new EchoWebSocketListener());
                     WS_EXECUTOR.submit(session);
 

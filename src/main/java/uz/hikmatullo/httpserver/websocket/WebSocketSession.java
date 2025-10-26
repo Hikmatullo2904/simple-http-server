@@ -60,6 +60,7 @@ public class WebSocketSession implements Runnable {
                 try {
                     frame = reader.read(in);
                     if (frame == null) {
+                        log.debug("frame is null");
                         // Stream closed cleanly by remote
                         break;
                     }
@@ -76,7 +77,9 @@ public class WebSocketSession implements Runnable {
                     // On protocol error, attempt to close with 1002
                     try {
                         sendClose(1002, "Protocol error");
-                    } catch (IOException ignored) {}
+                    } catch (IOException e) {
+                        log.debug("Failed to send close frame", e);
+                    }
                     break;
                 }
             }
@@ -215,7 +218,9 @@ public class WebSocketSession implements Runnable {
             } finally {
                 try {
                     socket.close();
-                } catch (IOException ignored) {}
+                } catch (IOException e) {
+                    log.debug("Failed to close socket", e);
+                }
             }
         }
     }
