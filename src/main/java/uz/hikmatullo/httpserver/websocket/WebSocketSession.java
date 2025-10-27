@@ -33,6 +33,7 @@ public class WebSocketSession implements Runnable {
     private final WebSocketFrameWriter writer;
     private final AtomicBoolean open = new AtomicBoolean(true);
     private final String id;
+    private final OutputStream out;
 
     public WebSocketSession(Socket socket, WebSocketListener listener) throws IOException {
         this.socket = socket;
@@ -40,12 +41,12 @@ public class WebSocketSession implements Runnable {
         this.reader = new WebSocketFrameReader();
         this.writer = new WebSocketFrameWriter();
         this.id = UUID.randomUUID().toString();
+        this.out = socket.getOutputStream();
     }
 
     @Override
     public void run() {
-        try (InputStream in = socket.getInputStream();
-             OutputStream out = socket.getOutputStream()) {
+        try (InputStream in = socket.getInputStream()) {
 
             // Notify listener that the connection is open
             try {
@@ -56,6 +57,7 @@ public class WebSocketSession implements Runnable {
             }
 
             while (open.get() && !socket.isClosed()) {
+                System.out.println("While loop is running in websocket session");
                 WebSocketFrame frame;
                 try {
                     frame = reader.read(in);
@@ -69,6 +71,8 @@ public class WebSocketSession implements Runnable {
                     log.debug("EOF received, closing session {}", id);
                     break;
                 }
+
+                System.out.println(frame);
 
                 try {
                     handleFrame(frame, out);
@@ -177,9 +181,7 @@ public class WebSocketSession implements Runnable {
     public void sendText(String text) throws IOException {
         ensureOpen();
         synchronized (writer) {
-            try (OutputStream out = socket.getOutputStream()) {
-                writer.writeText(out, text);
-            }
+            writer.writeText(out, text);
         }
     }
 
@@ -189,9 +191,7 @@ public class WebSocketSession implements Runnable {
     public void sendBinary(byte[] data) throws IOException {
         ensureOpen();
         synchronized (writer) {
-            try (OutputStream out = socket.getOutputStream()) {
-                writer.writeBinary(out, data);
-            }
+            writer.writeBinary(out, data);
         }
     }
 
@@ -201,9 +201,7 @@ public class WebSocketSession implements Runnable {
     public void sendPing(byte[] payload) throws IOException {
         ensureOpen();
         synchronized (writer) {
-            try (OutputStream out = socket.getOutputStream()) {
-                writer.writePing(out, payload);
-            }
+            writer.writePing(out, payload);
         }
     }
 
@@ -213,16 +211,9 @@ public class WebSocketSession implements Runnable {
     public void sendClose(int statusCode, String reason) throws IOException {
         if (!open.getAndSet(false)) return;
         synchronized (writer) {
-            try (OutputStream out = socket.getOutputStream()) {
-                writer.writeClose(out, statusCode, reason);
-            } finally {
-                try {
-                    socket.close();
-                } catch (IOException e) {
-                    log.debug("Failed to close socket", e);
-                }
-            }
+            writer.writeClose(out, statusCode, reason);
         }
+        socket.close();
     }
 
     // -------------------
@@ -238,6 +229,11 @@ public class WebSocketSession implements Runnable {
     }
 
     private void cleanup() {
+
+        try {
+            out.close();
+        } catch (IOException ignored) {}
+
         if (!socket.isClosed()) {
             try {
                 socket.close();

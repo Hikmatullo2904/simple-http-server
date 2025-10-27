@@ -1,14 +1,144 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WebSocket Test Client</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            background: #f5f5f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 50px;
+        }
+        #container {
+            width: 400px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        #status {
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        #messages {
+            height: 200px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow-y: auto;
+            padding: 10px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            background: #fafafa;
+        }
+        .message {
+            margin: 4px 0;
+        }
+        .sent {
+            color: #0077cc;
+        }
+        .received {
+            color: #009900;
+        }
+        .error {
+            color: #cc0000;
+        }
+        input[type="text"] {
+            width: calc(100% - 90px);
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            outline: none;
+            font-size: 14px;
+        }
+        button {
+            padding: 8px 12px;
+            border: none;
+            background-color: #0077cc;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-left: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #005fa3;
+        }
+    </style>
+</head>
 <body>
+<div id="container">
+    <h2>WebSocket Client</h2>
+    <div id="status">Connecting...</div>
+    <div id="messages"></div>
+    <div>
+        <input id="input" type="text" placeholder="Type message..." />
+        <button id="sendBtn">Send</button>
+    </div>
+</div>
+
 <script>
-    const ws = new WebSocket("ws://localhost:8080");
-    ws.onopen = () => console.log("✅ Connected!");
-    ws.onmessage = e => console.log("📩 Message:", e.data);
-    ws.onerror = e => console.error("❌ Error:", e);
-    // console.log("------------------------");
-    // ws.onopen = () => ws.send("hello server!");
-    // ws.onmessage = e => console.log("Server:", e.data);
+    const status = document.getElementById("status");
+    const messages = document.getElementById("messages");
+    const input = document.getElementById("input");
+    const sendBtn = document.getElementById("sendBtn");
+
+    let ws;
+
+    function log(message, type = "") {
+        const div = document.createElement("div");
+        div.classList.add("message");
+        if (type) div.classList.add(type);
+        div.textContent = message;
+        messages.appendChild(div);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    try {
+        ws = new WebSocket("ws://localhost:8080");
+        ws.onopen = () => {
+            status.textContent = "✅ Connected";
+            status.style.color = "green";
+            log("Connected to WebSocket server");
+        };
+        ws.onmessage = (event) => {
+            log("Server: " + event.data, "received");
+        };
+        ws.onerror = (error) => {
+            status.textContent = "❌ Connection error";
+            status.style.color = "red";
+            log("Error: " + error.message || error, "error");
+        };
+        ws.onclose = () => {
+            status.textContent = "🔌 Disconnected";
+            status.style.color = "gray";
+            log("Connection closed", "error");
+        };
+    } catch (e) {
+        status.textContent = "❌ Failed to connect";
+        status.style.color = "red";
+        log("Exception: " + e.message, "error");
+    }
+
+    sendBtn.onclick = () => {
+        const text = input.value.trim();
+        if (text === "") return;
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            log("Cannot send — not connected", "error");
+            return;
+        }
+        ws.send(text);
+        log("You: " + text, "sent");
+        input.value = "";
+    };
 </script>
 </body>
 </html>

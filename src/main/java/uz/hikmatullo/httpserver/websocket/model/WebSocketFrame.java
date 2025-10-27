@@ -1,5 +1,7 @@
 package uz.hikmatullo.httpserver.websocket.model;
 
+import java.util.Arrays;
+
 /**
  * Represents a single WebSocket frame.
  */
@@ -38,4 +40,18 @@ public final class WebSocketFrame {
     public byte[] getMaskingKey() {
         return maskingKey;
     }
+
+
+    @Override
+    public String toString() {
+        return "WebSocketFrame{" +
+                "fin=" + fin +
+                ", opcode=" + opcode +
+                ", payloadLength=" + (payload != null ? payload.length : 0) +
+                ", masked=" + masked +
+                ", maskingKey=" + Arrays.toString(maskingKey) +
+                ", payload=" + Arrays.toString(payload) +
+                '}';
+    }
+
 }

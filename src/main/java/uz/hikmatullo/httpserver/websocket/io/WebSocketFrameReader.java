@@ -6,11 +6,8 @@ import uz.hikmatullo.httpserver.websocket.model.WebSocketOpcode;
 import java.io.IOException;
 import java.io.InputStream;
 
-/**
- * Reads WebSocket frames from an InputStream.
- * Handles unmasking and variable payload lengths.
- */
 public class WebSocketFrameReader {
+    private static final int MAX_ALLOWED_SIZE = 16 * 1024 * 1024; // 16 MB
 
     public WebSocketFrame read(InputStream in) throws IOException {
         int b1 = in.read();
@@ -27,20 +24,33 @@ public class WebSocketFrameReader {
         long payloadLen = b2 & 0x7F;
 
         if (payloadLen == 126) {
-            payloadLen = ((in.read() & 0xFF) << 8) | (in.read() & 0xFF);
+            int hi = in.read();
+            int lo = in.read();
+            if (hi == -1 || lo == -1)
+                throw new IOException("Unexpected EOF reading 16-bit payload length");
+            payloadLen = ((hi & 0xFF) << 8) | (lo & 0xFF);
         } else if (payloadLen == 127) {
             payloadLen = 0;
             for (int i = 0; i < 8; i++) {
-                payloadLen = (payloadLen << 8) | (in.read() & 0xFF);
+                int b = in.read();
+                if (b == -1)
+                    throw new IOException("Unexpected EOF reading 64-bit payload length");
+                payloadLen = (payloadLen << 8) | (b & 0xFF);
             }
         }
 
-        byte[] maskingKey = null;
-        if (masked) {
-            maskingKey = new byte[4];
-            if (in.read(maskingKey) != 4)
-                throw new IOException("Unexpected EOF reading masking key");
-        }
+        if (opcode.isControl() && (!fin || payloadLen > 125))
+            throw new IOException("Invalid control frame");
+
+        if (payloadLen > MAX_ALLOWED_SIZE)
+            throw new IOException("Frame exceeds server limit");
+
+        if (!masked)
+            throw new IOException("Client frame not masked (protocol violation)");
+
+        byte[] maskingKey = new byte[4];
+        if (in.read(maskingKey) != 4)
+            throw new IOException("Unexpected EOF reading masking key");
 
         byte[] payload = new byte[(int) payloadLen];
         int read = 0;
@@ -50,10 +60,9 @@ public class WebSocketFrameReader {
             read += r;
         }
 
-        if (masked && maskingKey != null) {
-            for (int i = 0; i < payload.length; i++) {
-                payload[i] = (byte) (payload[i] ^ maskingKey[i % 4]);
-            }
+        // unmask
+        for (int i = 0; i < payload.length; i++) {
+            payload[i] ^= maskingKey[i % 4];
         }
 
         return new WebSocketFrame(fin, opcode, payload, masked, maskingKey);

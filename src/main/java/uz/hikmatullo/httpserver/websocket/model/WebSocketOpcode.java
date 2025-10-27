@@ -27,4 +27,13 @@ public enum WebSocketOpcode {
         }
         throw new IllegalArgumentException("Unknown opcode: " + code);
     }
+
+    /**
+     * Returns true if this opcode is a control frame (CLOSE, PING, PONG).
+     * Control frames have specific protocol constraints (must not be fragmented,
+     * payload length must be <= 125 bytes, etc.).
+     */
+    public boolean isControl() {
+        return this == CLOSE || this == PING || this == PONG;
+    }
 }

@@ -11,9 +11,10 @@ import java.nio.charset.StandardCharsets;
  * Server frames must NOT be masked.
  */
 public class WebSocketFrameWriter {
+    private static final int MAX_ALLOWED_SIZE = 16 * 1024 * 1024; // 16 MB
 
     public synchronized void writeText(OutputStream out, String message) throws IOException {
-        byte[] data = message.getBytes(StandardCharsets.UTF_8);
+        byte[] data = message == null ? new byte[0] : message.getBytes(StandardCharsets.UTF_8);
         writeFrame(out, WebSocketOpcode.TEXT, data);
     }
 
@@ -42,10 +43,19 @@ public class WebSocketFrameWriter {
     // internal low-level frame writer
     // -------------------------------
     private void writeFrame(OutputStream out, WebSocketOpcode opcode, byte[] payload) throws IOException {
+        if (payload == null) payload = new byte[0];
+        int len = payload.length;
+
+        if (len > MAX_ALLOWED_SIZE)
+            throw new IOException("Frame payload exceeds server limit");
+
+        if (opcode.isControl() && len > 125)
+            throw new IOException("Control frame payload too large");
+
         int b1 = 0x80 | opcode.code(); // FIN + opcode
         out.write(b1);
 
-        int len = payload == null ? 0 : payload.length;
+        // server frame -> no masking bit set
         if (len <= 125) {
             out.write(len);
         } else if (len <= 0xFFFF) {
@@ -54,8 +64,9 @@ public class WebSocketFrameWriter {
             out.write(len & 0xFF);
         } else {
             out.write(127);
+            long length = len & 0xFFFFFFFFL;
             for (int i = 7; i >= 0; i--) {
-                out.write((len >> (8 * i)) & 0xFF);
+                out.write((int) ((length >> (8 * i)) & 0xFF));
             }
         }
 
