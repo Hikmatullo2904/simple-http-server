@@ -9,6 +9,13 @@ import java.io.InputStream;
 public class WebSocketFrameReader {
     private static final int MAX_ALLOWED_SIZE = 16 * 1024 * 1024; // 16 MB
 
+    /**
+     * Read a WebSocket frame from the input stream.
+     * Raw data example: '81 84 C1 33 CD D9 89 5C A1 B8'. that is raw from of text "Hola" send by frontend
+     * @param in this is input stream from client
+     * @return WebSocketFrame object
+     * @throws IOException if an I/O error occurs
+     */
     public WebSocketFrame read(InputStream in) throws IOException {
         int b1 = in.read();
         if (b1 == -1) return null; // end of stream
@@ -67,4 +74,5 @@ public class WebSocketFrameReader {
 
         return new WebSocketFrame(fin, opcode, payload, masked, maskingKey);
     }
+
 }

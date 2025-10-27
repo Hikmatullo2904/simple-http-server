@@ -52,6 +52,7 @@ public class Main {
                 case "/contact" -> fileName = "contact.html";
                 case "/blog" -> fileName = "blog.html";
                 case "/about" -> fileName = "about.html";
+                case "/socket" -> fileName = "socket.html";
                 default -> fileName = "404.html";
             }
 

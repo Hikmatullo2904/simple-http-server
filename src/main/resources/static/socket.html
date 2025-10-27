@@ -52,7 +52,7 @@
             color: #cc0000;
         }
         input[type="text"] {
-            width: calc(100% - 90px);
+            width: 100%;
             padding: 8px;
             border: 1px solid #ccc;
             border-radius: 8px;
@@ -66,11 +66,19 @@
             color: white;
             border-radius: 8px;
             cursor: pointer;
-            margin-left: 5px;
             font-size: 14px;
         }
         button:hover {
             background-color: #005fa3;
+        }
+
+        #sendBinaryBtn {
+            margin-top: 5px;
+        }
+        .sendPart {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
     </style>
 </head>
@@ -79,9 +87,12 @@
     <h2>WebSocket Client</h2>
     <div id="status">Connecting...</div>
     <div id="messages"></div>
-    <div>
-        <input id="input" type="text" placeholder="Type message..." />
-        <button id="sendBtn">Send</button>
+    <div class="sendPart">
+        <div style="display: flex; gap: 10px;">
+            <input id="input" type="text" placeholder="Type message..." />
+            <button id="sendBtn">Send</button>
+        </div>
+        <button id="sendBinaryBtn">Send as Binary</button>
     </div>
 </div>
 
@@ -90,6 +101,7 @@
     const messages = document.getElementById("messages");
     const input = document.getElementById("input");
     const sendBtn = document.getElementById("sendBtn");
+    const sendBinaryBtn = document.getElementById("sendBinaryBtn");
 
     let ws;
 
@@ -104,19 +116,29 @@
 
     try {
         ws = new WebSocket("ws://localhost:8080");
+        ws.binaryType = "arraybuffer"; // Important for binary messages
+
         ws.onopen = () => {
             status.textContent = "✅ Connected";
             status.style.color = "green";
             log("Connected to WebSocket server");
         };
+
         ws.onmessage = (event) => {
-            log("Server: " + event.data, "received");
+            if (event.data instanceof ArrayBuffer) {
+                const bytes = new Uint8Array(event.data);
+                log("Server (binary): [" + Array.from(bytes).join(", ") + "]", "received");
+            } else {
+                log("Server: " + event.data, "received");
+            }
         };
+
         ws.onerror = (error) => {
             status.textContent = "❌ Connection error";
             status.style.color = "red";
-            log("Error: " + error.message || error, "error");
+            log("Error: " + (error.message || error), "error");
         };
+
         ws.onclose = () => {
             status.textContent = "🔌 Disconnected";
             status.style.color = "gray";
@@ -136,7 +158,22 @@
             return;
         }
         ws.send(text);
-        log("You: " + text, "sent");
+        log("You (text): " + text, "sent");
+        input.value = "";
+    };
+
+    sendBinaryBtn.onclick = () => {
+        const text = input.value.trim();
+        if (text === "") return;
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            log("Cannot send — not connected", "error");
+            return;
+        }
+        // Convert to bytes
+        const encoder = new TextEncoder();
+        const data = encoder.encode(text);
+        ws.send(data.buffer);
+        log("You (binary): [" + Array.from(data).join(", ") + "]", "sent");
         input.value = "";
     };
 </script>
