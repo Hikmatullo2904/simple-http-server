@@ -9,6 +9,7 @@ import uz.hikmatullo.httpserver.core.model.HttpRequest;
 import uz.hikmatullo.httpserver.core.model.HttpResponse;
 import uz.hikmatullo.httpserver.core.model.HttpStatusCode;
 import uz.hikmatullo.httpserver.runtime.HttpServer;
+import uz.hikmatullo.httpserver.websocket.listener.EchoWebSocketListener;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,7 +29,7 @@ public class Main {
         log.info("Application web root is: {}", currentConfiguration.getWebroot());
 
         try {
-            var serverListenerThread = new HttpServer(currentConfiguration.getPort(), new TestController());
+            var serverListenerThread = new HttpServer(currentConfiguration.getPort(), new TestController(), new EchoWebSocketListener());
             serverListenerThread.start();
         } catch (IOException e) {
             log.error(e.getMessage());

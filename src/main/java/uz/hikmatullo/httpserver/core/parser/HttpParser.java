@@ -22,12 +22,10 @@ import java.util.Objects;
 
 /**
  * Strict HTTP/1.x request parser.
- *
  * Key decisions:
  * - Uses raw InputStream so we can enforce strict CRLF sequences.
  * - Uses ISO-8859-1 (latin1) for request-line and header bytes per RFC7230.
  * - Body decoding (to String) uses UTF-8 by default; you may inspect Content-Type charset to change this.
- *
  * Note: this parser is intentionally strict — it rejects many malformed cases that lenient servers might accept.
  */
 public class HttpParser {
@@ -57,7 +55,7 @@ public class HttpParser {
 
         try {
             // Request line
-            String requestLine = readLineStrictRequestLine(input, MAX_REQUEST_LINE_LENGTH);
+            String requestLine = readLineStrictRequestLine(input);
 
             //It is null if it is empty request.
             if (requestLine == null) {
@@ -78,10 +76,10 @@ public class HttpParser {
             HttpVersion version = builder.getHttpVersion();
             if (version == null) {
                 // fallback: attempt to compute from header 'Host' or previously set - but ideally builder.httpVersion() already set by request line.
-                throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
+                throw new HttpParsingException(HttpStatusCode.BAD_REQUEST, "HTTP version is required");
             }
             if (version.isHttp11() && !headers.containsKey("host")) {
-                throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
+                throw new HttpParsingException(HttpStatusCode.BAD_REQUEST, "Host is required for HTTP/1.1");
             }
 
             // Body
@@ -179,7 +177,7 @@ public class HttpParser {
         int totalSize = 0;
 
         while (true) {
-            String line = readLineStrict(input, MAX_HEADER_LINE_LENGTH);
+            String line = readLineStrict(input);
             // line == "" => end of headers
             if (line.isEmpty()) break;
 
@@ -209,7 +207,8 @@ public class HttpParser {
             // Combine repeated headers per RFC (concatenate with ", ").
             if (headers.containsKey(nameLower)) {
                 String prev = headers.get(nameLower);
-                headers.put(nameLower, prev + ", " + value);
+                String val = prev + ", " + value;
+                headers.put(nameLower, val);
             } else {
                 headers.put(nameLower, value);
             }
@@ -236,7 +235,7 @@ public class HttpParser {
                 throw new HttpParsingException(HttpStatusCode.NOT_IMPLEMENTED);
             }
 
-            byte[] bodyBytes = readChunkedBody(input, builder, headers);
+            byte[] bodyBytes = readChunkedBody(input);
             String bodyString = bytesToStringWithCharset(bodyBytes, headers);
             builder.body(bodyString);
             return;
@@ -309,30 +308,30 @@ public class HttpParser {
      * 0 CRLF
      * [trailer headers] CRLF
      */
-    private byte[] readChunkedBody(InputStream input, HttpRequest.Builder builder, Map<String, String> requestHeaders) throws IOException {
+    private byte[] readChunkedBody(InputStream input) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         while (true) {
             // Read chunk-size line strictly
-            String sizeLine = readLineStrict(input, MAX_HEADER_LINE_LENGTH);
+            String sizeLine = readLineStrict(input);
             // strip chunk extensions (after ';')
             int semi = sizeLine.indexOf(';');
             String sizeToken = semi >= 0 ? sizeLine.substring(0, semi).trim() : sizeLine.trim();
-            if (sizeToken.isEmpty()) throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
+            if (sizeToken.isEmpty()) throw new HttpParsingException(HttpStatusCode.BAD_REQUEST, "Chunk size is empty");
 
             int chunkSize;
             try {
                 chunkSize = Integer.parseInt(sizeToken, 16);
             } catch (NumberFormatException ex) {
-                throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
+                throw new HttpParsingException(HttpStatusCode.BAD_REQUEST, "Chunk size is not a valid integer");
             }
 
-            if (chunkSize < 0) throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
+            if (chunkSize < 0) throw new HttpParsingException(HttpStatusCode.BAD_REQUEST, "Chunk size is negative");
 
             if (chunkSize == 0) {
                 // final chunk; consume trailer headers (if any) until CRLF CRLF
                 Map<String, String> trailers = new LinkedHashMap<>();
                 while (true) {
-                    String trailerLine = readLineStrict(input, MAX_HEADER_LINE_LENGTH);
+                    String trailerLine = readLineStrict(input);
                     if (trailerLine.isEmpty()) break;
                     int colon = trailerLine.indexOf(':');
                     if (colon <= 0) throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
@@ -357,7 +356,7 @@ public class HttpParser {
             int c1 = input.read();
             int c2 = input.read();
             if (c1 != CR || c2 != LF) {
-                throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
+                throw new HttpParsingException(HttpStatusCode.BAD_REQUEST, "CRLF expected after chunk data");
             }
         }
     }
@@ -365,7 +364,7 @@ public class HttpParser {
     // ---------------------------
     // Utility - strict line reader (CRLF only)
     // ---------------------------
-    private String readLineStrict(InputStream input, int maxLen) throws IOException {
+    private String readLineStrict(InputStream input) throws IOException {
         ByteArrayOutputStream buf = new ByteArrayOutputStream(128);
         int total = 0;
 
@@ -373,37 +372,21 @@ public class HttpParser {
             int b = input.read();
             if (b == -1) {
                 // EOF while reading a line -> protocol error
-                throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
+                throw new HttpParsingException(HttpStatusCode.BAD_REQUEST, "EOF while reading a line");
             }
             total++;
-            if (total > maxLen) {
-                throw new HttpParsingException(HttpStatusCode.REQUEST_HEADER_FIELDS_TOO_LARGE);
+            if (total > HttpParser.MAX_HEADER_LINE_LENGTH) {
+                throw new HttpParsingException(HttpStatusCode.REQUEST_HEADER_FIELDS_TOO_LARGE, "Request header fields too large");
             }
 
-            if (b == CR) {
-                int next = input.read();
-                if (next == -1) throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
-                if (next != LF) {
-                    // CR not followed by LF: invalid per strict HTTP parsing
-                    throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
-                }
-                // line ended. convert bytes to String using ISO-8859-1 as RFC suggests for header bytes
-                return buf.toString(StandardCharsets.ISO_8859_1);
-            }
-
-            if (b == LF) {
-                // LF without preceding CR -> invalid
-                throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
-            }
-
-            buf.write(b);
+            if (readLines(input, buf, b)) return buf.toString(StandardCharsets.ISO_8859_1);
         }
     }
 
     // ---------------------------
     // Utility - strict line reader (CRLF only)
     // ---------------------------
-    private String readLineStrictRequestLine(InputStream input, int maxLen) throws IOException {
+    private String readLineStrictRequestLine(InputStream input) throws IOException {
         ByteArrayOutputStream buf = new ByteArrayOutputStream(128);
         int total = 0;
 
@@ -414,31 +397,36 @@ public class HttpParser {
                     return null;
                 }
                 // EOF while reading a line -> protocol error
-                throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
+                throw new HttpParsingException(HttpStatusCode.BAD_REQUEST, "EOF while reading a line");
             }
             total++;
-            if (total > maxLen) {
-                throw new HttpParsingException(HttpStatusCode.REQUEST_HEADER_FIELDS_TOO_LARGE);
+            if (total > HttpParser.MAX_REQUEST_LINE_LENGTH) {
+                throw new HttpParsingException(HttpStatusCode.REQUEST_HEADER_FIELDS_TOO_LARGE, "Request header fields too large");
             }
 
-            if (b == CR) {
-                int next = input.read();
-                if (next == -1) throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
-                if (next != LF) {
-                    // CR not followed by LF: invalid per strict HTTP parsing
-                    throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
-                }
-                // line ended. convert bytes to String using ISO-8859-1 as RFC suggests for header bytes
-                return buf.toString(StandardCharsets.ISO_8859_1);
-            }
-
-            if (b == LF) {
-                // LF without preceding CR -> invalid
-                throw new HttpParsingException(HttpStatusCode.BAD_REQUEST);
-            }
-
-            buf.write(b);
+            if (readLines(input, buf, b)) return buf.toString(StandardCharsets.ISO_8859_1);
         }
+    }
+
+    private boolean readLines(InputStream input, ByteArrayOutputStream buf, int b) throws IOException {
+        if (b == CR) {
+            int next = input.read();
+            if (next == -1) throw new HttpParsingException(HttpStatusCode.BAD_REQUEST, "EOF while reading a line");
+            if (next != LF) {
+                // CR not followed by LF: invalid per strict HTTP parsing
+                throw new HttpParsingException(HttpStatusCode.BAD_REQUEST, "CR not followed by LF");
+            }
+            // line ended. convert bytes to String using ISO-8859-1 as RFC suggests for header bytes
+            return true;
+        }
+
+        if (b == LF) {
+            // LF without preceding CR -> invalid
+            throw new HttpParsingException(HttpStatusCode.BAD_REQUEST, "LF without preceding CR");
+        }
+
+        buf.write(b);
+        return false;
     }
 
     // ---------------------------

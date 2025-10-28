@@ -9,9 +9,10 @@ import uz.hikmatullo.httpserver.core.model.HttpRequest;
 import uz.hikmatullo.httpserver.core.model.HttpResponse;
 import uz.hikmatullo.httpserver.core.model.HttpStatusCode;
 import uz.hikmatullo.httpserver.core.parser.HttpParser;
+import uz.hikmatullo.httpserver.exception.HttpParsingException;
 import uz.hikmatullo.httpserver.websocket.WebSocketSession;
 import uz.hikmatullo.httpserver.websocket.WebSocketUtils;
-import uz.hikmatullo.httpserver.websocket.listener.EchoWebSocketListener;
+import uz.hikmatullo.httpserver.websocket.listener.WebSocketListener;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,9 +30,11 @@ public class HttpConnectionHandler implements Runnable {
     private static final ExecutorService WS_EXECUTOR = Executors.newCachedThreadPool();
     private final Socket socket;
     private final RequestHandler requestHandler;
-    public HttpConnectionHandler(Socket socket, RequestHandler requestHandler) {
+    private final WebSocketListener webSocketListener;
+    public HttpConnectionHandler(Socket socket, RequestHandler requestHandler, WebSocketListener webSocketListener) {
         this.socket = socket;
         this.requestHandler = requestHandler;
+        this.webSocketListener = webSocketListener;
     }
 
     @Override
@@ -73,7 +76,7 @@ public class HttpConnectionHandler implements Runnable {
                     handleWebSocketUpgrade(request, outputStream);
 
 
-                    WebSocketSession session = new WebSocketSession(socket, new EchoWebSocketListener());
+                    WebSocketSession session = new WebSocketSession(socket, webSocketListener);
                     WS_EXECUTOR.submit(session);
 
                     // IMPORTANT: after upgrade we must NOT close socket or streams here.
@@ -84,9 +87,6 @@ public class HttpConnectionHandler implements Runnable {
 
                 // --- Handle request ---
                 HttpResponse response = requestHandler.handle(request);
-                if(request.getPath().equals("/")) {
-                    throw new RuntimeException("We do not support root path");
-                }
 
                 // --- Handle Keep-Alive ---
                 keepAlive = keepAliveManager.shouldKeepAlive(request);
@@ -101,7 +101,10 @@ public class HttpConnectionHandler implements Runnable {
 
             } while (keepAlive && !socket.isClosed());
 
-        } catch (SocketTimeoutException e) {
+        } catch (HttpParsingException e) {
+            sendErrorResponse(e.getErrorCode(), e.getMessage(), outputStream);
+        }
+        catch (SocketTimeoutException e) {
             log.debug("Keep-alive timeout reached, closing connection.");
         }catch (IOException e) {
             log.error("I/O error happened: {}", e.getMessage());
@@ -142,8 +145,6 @@ public class HttpConnectionHandler implements Runnable {
             }
         }
     }
-
-
 
     private void sendErrorResponse(HttpStatusCode status, String message, OutputStream outputStream) {
         try {

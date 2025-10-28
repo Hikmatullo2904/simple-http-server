@@ -3,6 +3,7 @@ package uz.hikmatullo.httpserver.runtime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import uz.hikmatullo.httpserver.core.handler.RequestHandler;
+import uz.hikmatullo.httpserver.websocket.listener.WebSocketListener;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -13,9 +14,11 @@ public class HttpServer extends Thread{
     private static final Logger log = LoggerFactory.getLogger(HttpServer.class);
     private final ServerSocket serverSocket;
     private final RequestHandler requestHandler;
-    public HttpServer(int port,  RequestHandler requestHandler) throws IOException {
+    private final WebSocketListener webSocketListener;
+    public HttpServer(int port, RequestHandler requestHandler, WebSocketListener webSocketListener) throws IOException {
         serverSocket = new ServerSocket(port);
         this.requestHandler = requestHandler;
+        this.webSocketListener = webSocketListener;
     }
 
     @Override
@@ -26,7 +29,7 @@ public class HttpServer extends Thread{
                 Socket socket = serverSocket.accept();
                 log.info("Client connected!");
 
-                var workerThread = new HttpConnectionHandler(socket, requestHandler);
+                var workerThread = new HttpConnectionHandler(socket, requestHandler, webSocketListener);
                 new Thread(workerThread).start();
             }
         } catch (IOException e) {
