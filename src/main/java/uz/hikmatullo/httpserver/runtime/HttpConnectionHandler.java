@@ -18,6 +18,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -83,6 +84,9 @@ public class HttpConnectionHandler implements Runnable {
 
                 // --- Handle request ---
                 HttpResponse response = requestHandler.handle(request);
+                if(request.getPath().equals("/")) {
+                    throw new RuntimeException("We do not support root path");
+                }
 
                 // --- Handle Keep-Alive ---
                 keepAlive = keepAliveManager.shouldKeepAlive(request);
@@ -101,10 +105,10 @@ public class HttpConnectionHandler implements Runnable {
             log.debug("Keep-alive timeout reached, closing connection.");
         }catch (IOException e) {
             log.error("I/O error happened: {}", e.getMessage());
-            sendErrorResponse(socket, HttpStatusCode.INTERNAL_SERVER_ERROR.statusCode, e.getMessage());
+            sendErrorResponse(HttpStatusCode.INTERNAL_SERVER_ERROR, e.getMessage(), outputStream);
         } catch (Exception e) {
             log.error("Unexpected error: {}", e.getMessage());
-            sendErrorResponse(socket, HttpStatusCode.INTERNAL_SERVER_ERROR.statusCode, e.getMessage());
+            sendErrorResponse(HttpStatusCode.INTERNAL_SERVER_ERROR, e.getMessage(), outputStream);
         } finally {
             if (!upgradedToWebSocket)
                 closeConnection(inputStream, outputStream);
@@ -141,26 +145,37 @@ public class HttpConnectionHandler implements Runnable {
 
 
 
-    private void sendErrorResponse(Socket socket, int statusCode, String message) {
+    private void sendErrorResponse(HttpStatusCode status, String message, OutputStream outputStream) {
         try {
-            String response = "HTTP/1.1 " + statusCode + " " + message + "\r\n" +
-                    "Content-Length: 0\r\n" +
-                    "Connection: close\r\n\r\n";
+            byte[] bodyBytes = getError(status, message);
+            HttpResponse response = new HttpResponse(status);
+            response.addHeader("Content-Type", "text/html; charset=utf-8");
+            response.addHeader("Content-Length", String.valueOf(bodyBytes.length));
+            response.addHeader("Connection", "close");
+            HttpHeaderDefaults.applyServerInfoHeaders(response);
+            response.setBody(bodyBytes);
 
-            OutputStream os = socket.getOutputStream();
-            os.write(response.getBytes());
-            os.flush();
-            System.out.println("Error message is sent");
+            response.write(outputStream);
+            System.out.println("Error message sent: " + status.getCode());
         } catch (IOException e) {
             log.error("Failed to send error response: {}", e.getMessage());
         }
     }
 
+    private byte[] getError(HttpStatusCode status, String message) {
+        String reason = status.getReasonPhrase(); // e.g. "Bad Request"
+        String body = "<html><body><h2>" + status.getCode() + " " + reason + "</h2>" +
+                "<p>" + message + "</p></body></html>";
+
+        return body.getBytes(StandardCharsets.UTF_8);
+    }
+
+
 
     private void handleWebSocketUpgrade(HttpRequest request, OutputStream outputStream) throws IOException {
         String clientKey = request.getHeader("Sec-WebSocket-Key");
         if (clientKey == null || clientKey.isEmpty()) {
-            sendErrorResponse(socket, HttpStatusCode.BAD_REQUEST.statusCode, "Missing Sec-WebSocket-Key");
+            sendErrorResponse(HttpStatusCode.BAD_REQUEST, "Missing Sec-WebSocket-Key", outputStream);
             return;
         }
 
