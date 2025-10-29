@@ -11,6 +11,7 @@ import uz.hikmatullo.httpserver.core.model.HttpStatusCode;
 import uz.hikmatullo.httpserver.core.parser.HttpParser;
 import uz.hikmatullo.httpserver.exception.HttpParsingException;
 import uz.hikmatullo.httpserver.websocket.WebSocketSession;
+import uz.hikmatullo.httpserver.websocket.WebSocketSessionManager;
 import uz.hikmatullo.httpserver.websocket.WebSocketUtils;
 import uz.hikmatullo.httpserver.websocket.listener.WebSocketListener;
 
@@ -31,10 +32,12 @@ public class HttpConnectionHandler implements Runnable {
     private final Socket socket;
     private final RequestHandler requestHandler;
     private final WebSocketListener webSocketListener;
-    public HttpConnectionHandler(Socket socket, RequestHandler requestHandler, WebSocketListener webSocketListener) {
+    private final WebSocketSessionManager webSocketSessionManager;
+    public HttpConnectionHandler(Socket socket, RequestHandler requestHandler, WebSocketListener webSocketListener, WebSocketSessionManager webSocketSessionManager) {
         this.socket = socket;
         this.requestHandler = requestHandler;
         this.webSocketListener = webSocketListener;
+        this.webSocketSessionManager = webSocketSessionManager;
     }
 
     @Override
@@ -76,7 +79,7 @@ public class HttpConnectionHandler implements Runnable {
                     handleWebSocketUpgrade(request, outputStream);
 
 
-                    WebSocketSession session = new WebSocketSession(socket, webSocketListener);
+                    WebSocketSession session = new WebSocketSession(socket, webSocketListener, webSocketSessionManager);
                     WS_EXECUTOR.submit(session);
 
                     // IMPORTANT: after upgrade we must NOT close socket or streams here.

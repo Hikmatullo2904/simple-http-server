@@ -4,22 +4,23 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import uz.hikmatullo.httpserver.websocket.io.WebSocketFrameReader;
 import uz.hikmatullo.httpserver.websocket.io.WebSocketFrameWriter;
+import uz.hikmatullo.httpserver.websocket.listener.WebSocketListener;
 import uz.hikmatullo.httpserver.websocket.model.WebSocketFrame;
 import uz.hikmatullo.httpserver.websocket.model.WebSocketOpcode;
-import uz.hikmatullo.httpserver.websocket.listener.WebSocketListener;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.net.SocketException;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Manages a single WebSocket connection. Reads frames, dispatches to the listener,
  * and exposes send methods for the application.
- *
  * Usage:
  *   WebSocketSession session = new WebSocketSession(socket, listener);
  *   executor.submit(session); // or new Thread(session).start();
@@ -34,10 +35,13 @@ public class WebSocketSession implements Runnable {
     private final AtomicBoolean open = new AtomicBoolean(true);
     private final String id;
     private final OutputStream out;
+    private final WebSocketSessionManager manager;
 
-    public WebSocketSession(Socket socket, WebSocketListener listener) throws IOException {
+
+    public WebSocketSession(Socket socket, WebSocketListener listener, WebSocketSessionManager manager) throws IOException {
         this.socket = socket;
         this.listener = listener;
+        this.manager = manager;
         this.reader = new WebSocketFrameReader();
         this.writer = new WebSocketFrameWriter();
         this.id = UUID.randomUUID().toString();
@@ -56,6 +60,9 @@ public class WebSocketSession implements Runnable {
                 log.warn("Listener.onOpen threw", t);
             }
 
+            // Register after onOpen to ensure listener sees a registered session, if manager present
+            if (manager != null) manager.register(this);
+
             while (open.get() && !socket.isClosed()) {
                 System.out.println("While loop is running in websocket session");
                 WebSocketFrame frame;
@@ -72,8 +79,6 @@ public class WebSocketSession implements Runnable {
                     break;
                 }
 
-                System.out.println(frame);
-
                 try {
                     handleFrame(frame, out);
                 } catch (Throwable t) {
@@ -87,6 +92,8 @@ public class WebSocketSession implements Runnable {
                     break;
                 }
             }
+        }catch (SocketException e) {
+            log.warn("Socket closed unexpectedly");
         } catch (IOException e) {
             // network I/O broken
             listener.onError(this, e);
@@ -101,7 +108,7 @@ public class WebSocketSession implements Runnable {
 
         switch (opcode) {
             case TEXT -> {
-                String text = new String(frame.getPayload(), java.nio.charset.StandardCharsets.UTF_8);
+                String text = new String(frame.getPayload(), StandardCharsets.UTF_8);
                 try {
                     listener.onTextMessage(this, text);
                 } catch (Throwable t) {
@@ -143,7 +150,7 @@ public class WebSocketSession implements Runnable {
                 if (p != null && p.length >= 2) {
                     code = ((p[0] & 0xFF) << 8) | (p[1] & 0xFF);
                     if (p.length > 2) {
-                        reason = new String(p, 2, p.length - 2, java.nio.charset.StandardCharsets.UTF_8);
+                        reason = new String(p, 2, p.length - 2, StandardCharsets.UTF_8);
                     }
                 }
                 // Echo close if we are still open (per RFC)
@@ -164,10 +171,8 @@ public class WebSocketSession implements Runnable {
                     socket.close();
                 } catch (IOException ignored) {}
             }
-            default -> {
-                // Unknown/unsupported opcode -> protocol error
-                throw new IOException("Unsupported opcode: " + opcode);
-            }
+            default -> // Unknown/unsupported opcode -> protocol error
+                    throw new IOException("Unsupported opcode: " + opcode);
         }
     }
 
@@ -216,10 +221,19 @@ public class WebSocketSession implements Runnable {
         socket.close();
     }
 
+    void closeUnderlying() {
+        try {
+            out.close();
+        } catch (IOException ignored) {}
+        try {
+            if (!socket.isClosed()) socket.close();
+        } catch (IOException ignored) {}
+        open.set(false);
+    }
+
     // -------------------
     // Utilities
     // -------------------
-
     private void ensureOpen() throws IOException {
         if (!open.get()) throw new IOException("WebSocketSession is closed");
         if (socket.isClosed()) {
@@ -229,6 +243,8 @@ public class WebSocketSession implements Runnable {
     }
 
     private void cleanup() {
+        // Unregister from manager first to avoid races
+        if (manager != null) manager.unregister(this);
 
         try {
             out.close();
@@ -240,6 +256,13 @@ public class WebSocketSession implements Runnable {
             } catch (IOException ignored) {}
         }
         open.set(false);
+
+        try {
+            listener.onClose(this, -1, "cleanup");
+        } catch (Throwable ignored) {}
+
+
+        log.info("[WebSocketSession] cleaned up session={} remote={}", id, getRemoteAddress());
     }
 
     public boolean isOpen() {
