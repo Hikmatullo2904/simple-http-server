@@ -42,6 +42,7 @@ public class HttpConnectionHandler implements Runnable {
 
     @Override
     public void run() {
+        log.debug("Connection handler started");
         boolean upgradedToWebSocket = false;
 
         InputStream inputStream = null;
@@ -80,7 +81,7 @@ public class HttpConnectionHandler implements Runnable {
 
 
                     WebSocketSession session = new WebSocketSession(socket, webSocketListener, webSocketSessionManager);
-                    WS_EXECUTOR.submit(session);
+                    ExecutorsHolder.VIRTUAL_EXECUTOR.submit(session);
 
                     // IMPORTANT: after upgrade we must NOT close socket or streams here.
                     // Hand-off is complete; stop HTTP loop and return.
@@ -100,7 +101,7 @@ public class HttpConnectionHandler implements Runnable {
                 // --- Send Response ---
                 response.write(outputStream);
 
-                log.info("Request processed. keepAlive={}", keepAlive);
+                log.debug("Request processed. keepAlive={}", keepAlive);
 
             } while (keepAlive && !socket.isClosed());
 

@@ -9,6 +9,7 @@ import uz.hikmatullo.httpserver.websocket.listener.WebSocketListener;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.concurrent.RejectedExecutionException;
 
 public class HttpServer extends Thread{
 
@@ -41,7 +42,14 @@ public class HttpServer extends Thread{
                 log.info("Client connected!");
 
                 var workerThread = new HttpConnectionHandler(socket, requestHandler, webSocketListener, webSocketSessionManager);
-                new Thread(workerThread).start();
+                try {
+                    ExecutorsHolder.VIRTUAL_EXECUTOR.execute(workerThread);
+                } catch (RejectedExecutionException rex) {
+                    log.warn("Server is overloaded - rejecting connection from {}", socket.getRemoteSocketAddress());
+                    try {
+                        socket.close();
+                    } catch (IOException ignored) {}
+                }
             }
         } catch (IOException e) {
             log.error("Error occurred when setting up socket", e);
@@ -65,6 +73,9 @@ public class HttpServer extends Thread{
                 log.error("Could not close server socket. {}", e.getMessage());
             }
         }
+
+        ExecutorsHolder.shutdownAll();
+        log.debug("HttpServer stopped");
     }
 
 
